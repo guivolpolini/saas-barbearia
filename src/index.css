@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: #1a1a1a;
+    --color-accent: #c8a96e;
+    --color-accent-dark: #a88748;
+    --color-surface: #111111;
+    --color-surface-2: #1e1e1e;
+    --color-border: #2a2a2a;
+    --color-text: #f5f5f5;
+    --color-text-muted: #9a9a9a;
+  }
+
+  * {
+    @apply border-[var(--color-border)];
+  }
+
+  body {
+    @apply bg-[var(--color-primary)] text-[var(--color-text)] antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-accent)] text-black font-semibold rounded-lg hover:bg-[var(--color-accent-dark)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 border border-[var(--color-accent)] text-[var(--color-accent)] font-semibold rounded-lg hover:bg-[var(--color-accent)] hover:text-black transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-[var(--color-text-muted)] font-medium rounded-lg hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-xl;
+  }
+
+  .input {
+    @apply w-full px-4 py-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-[var(--color-text)];
+  }
+
+  .section-subtitle {
+    @apply text-[var(--color-text-muted)] text-lg mt-3;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full;
+  }
+}
