@@ -1,73 +1,73 @@
-# SaaS Barbearia
+# saas-barbearia
 
-MVP de agendamento online multiempresa. Stack: React + Vite + TypeScript + Tailwind CSS + Supabase + n8n.
+Sistema de agendamento online que construí como MVP para testar a viabilidade de um SaaS voltado a pequenos negócios. A ideia é simples: o cliente acessa o site, conversa com um chat e marca o horário — sem ligar, sem WhatsApp, sem depender de ninguém.
 
----
+A demo roda com dados da **Barbearia Prime** (fictícia), mas a arquitetura é multiempresa desde o início. Para colocar outro cliente, basta cadastrar no banco.
 
-## Setup rápido
+## Stack
 
-### 1. Clonar e instalar
+- React + Vite + TypeScript
+- Tailwind CSS v4
+- Supabase (Postgres + Auth)
+- n8n para automações via webhook
+- date-fns, lucide-react, react-router-dom
+
+## O que tem
+
+**Site público**
+- Landing page com serviços, preços, horários e avaliações
+- Chat flutuante que conduz o agendamento passo a passo
+- Verificação de conflito de horário antes de confirmar
+
+**Painel admin** (`/admin`)
+- Dashboard com resumo do dia e do mês
+- Agenda semanal
+- Lista de agendamentos com filtros e atualização de status
+- CRUD de serviços e preços
+- Configuração de horários de funcionamento
+- Edição dos dados da empresa
+
+**Banco de dados**
+- Schema multiempresa com `business_id` em todas as tabelas
+- RLS configurado no Supabase
+- Índice único para impedir agendamento duplicado no mesmo horário
+
+## Rodando localmente
 
 ```bash
-git clone <repo>
+git clone https://github.com/guivolpolini/saas-barbearia
 cd saas-barbearia
 npm install
-```
-
-### 2. Variáveis de ambiente
-
-```bash
 cp .env.example .env
 ```
 
-Preencha no `.env`:
-
-| Variável | Onde encontrar |
-|---|---|
-| `VITE_SUPABASE_URL` | Supabase Dashboard → Settings → API → Project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Dashboard → Settings → API → anon/public key |
-| `VITE_N8N_WEBHOOK_URL` | n8n → crie um workflow Webhook e copie a URL |
-
-> ⚠️ **Nunca commite o `.env`**. Ele já está no `.gitignore`.
-
-### 3. Configurar o Supabase
-
-1. Crie um projeto em [supabase.com](https://supabase.com)
-2. Vá em **SQL Editor** e execute o arquivo `supabase/schema.sql`
-   - Isso cria as tabelas, RLS, índices e faz o seed da Barbearia Prime
-3. Crie um usuário admin:
-   - **Authentication → Users → Add user** (email + senha)
-   - Esse usuário vai acessar o `/admin`
-
-### 4. Rodar localmente
+Preencha o `.env` com suas credenciais do Supabase, execute o `supabase/schema.sql` no SQL Editor do projeto e rode:
 
 ```bash
 npm run dev
 ```
 
-Acesse:
-- **Site público**: http://localhost:5173
-- **Admin**: http://localhost:5173/admin
+O admin fica em `/admin/login`. Crie o usuário pelo painel de Authentication do Supabase.
 
----
+## Variáveis de ambiente
 
-## Configurar n8n
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-anon-key
+VITE_N8N_WEBHOOK_URL=         # opcional, deixe vazio se não usar
+```
 
-1. Instale o n8n (`npx n8n` ou via Docker)
-2. Crie um workflow com o nó **Webhook** (method: POST)
-3. Copie a URL do webhook e coloque em `VITE_N8N_WEBHOOK_URL`
-4. A partir do Webhook, conecte:
-   - **Send Email** (confirmação)
-   - **Schedule** (lembrete 24h antes)
-   - Qualquer outro nó de automação
+A `service_role` nunca vai pro frontend. Se quiser mover o webhook do n8n pra um lugar mais seguro, uma Edge Function do Supabase resolve.
 
-Payload enviado pelo app:
+## n8n
+
+Quando o agendamento é confirmado, o sistema dispara um `POST` pro webhook configurado:
 
 ```json
 {
   "event": "appointment.created",
-  "business_id": "uuid",
-  "service_id": "uuid",
+  "business_id": "...",
+  "service_id": "...",
   "service_name": "Corte",
   "customer_name": "João Silva",
   "phone": "(11) 99999-0000",
@@ -75,85 +75,39 @@ Payload enviado pelo app:
   "time": "14:30",
   "duration_min": 45,
   "price": 40.00,
-  "appointment_id": "uuid",
-  "created_at": "2026-09-27T19:00:00Z"
+  "appointment_id": "...",
+  "created_at": "..."
 }
 ```
 
----
+A partir daí no n8n você conecta o que quiser: e-mail de confirmação, lembrete no dia anterior, planilha, Telegram pro barbeiro, etc.
 
-## Adicionar uma segunda empresa (SaaS)
+## Adicionando um novo cliente
 
-Para onboarding de um novo cliente:
-
-### 1. Inserir no banco
+Só inserir no banco — sem mexer em código:
 
 ```sql
--- 1. Criar empresa
+-- 1. empresa
 INSERT INTO public.businesses (name, slug, description, phone, email, address, city, state, primary_color)
-VALUES ('Barbearia Nova', 'barbearia-nova', 'Descrição...', '(11) 99999-9999', 'contato@nova.com', 'Rua X, 100', 'Rio de Janeiro', 'RJ', '#2563eb');
+VALUES ('Nome do Cliente', 'slug-do-cliente', '...', '...', '...', '...', '...', '...', '#hex');
 
--- 2. Adicionar serviços
+-- 2. serviços
 INSERT INTO public.services (business_id, name, price, duration_min, sort_order)
-VALUES 
-  ('<id_da_empresa>', 'Corte', 45.00, 45, 1),
-  ('<id_da_empresa>', 'Barba', 35.00, 30, 2);
+VALUES ('<id>', 'Corte', 50.00, 45, 1);
 
--- 3. Adicionar horários
+-- 3. horários
 INSERT INTO public.business_hours (business_id, day_of_week, open_time, close_time, is_closed)
-VALUES
-  ('<id_da_empresa>', 0, null, null, true),
-  ('<id_da_empresa>', 1, '10:00', '20:00', false),
-  -- ...demais dias
+VALUES ('<id>', 1, '09:00', '18:00', false); -- repetir para cada dia
 ```
 
-### 2. Deploy de nova instância
+Depois sobe uma instância do projeto apontando pro slug novo no `BusinessContext.tsx`. Futuramente esse slug pode vir do subdomínio automaticamente.
 
-Cada cliente tem seu próprio deploy com:
-- Mesmo código
-- `.env` apontando pro mesmo Supabase (ou projeto separado)
-- `BUSINESS_SLUG` = slug da empresa (`src/contexts/BusinessContext.tsx` linha 18)
+## O que não tem (ainda)
 
-Futuramente, `BUSINESS_SLUG` pode vir de subdomínio automático (`barbearia-nova.seudominio.com`).
+- Pagamentos
+- Notificações por SMS
+- IA
+- Multi-profissional (mais de um barbeiro por agenda)
+- App mobile
 
----
-
-## Estrutura do projeto
-
-```
-src/
-├── components/
-│   ├── admin/          # Layout do painel admin
-│   ├── chat/           # Widget de chat com fluxo de agendamento
-│   └── landing/        # Seções da landing page
-├── contexts/           # BusinessContext + AuthContext
-├── lib/
-│   ├── api.ts          # Todas as queries Supabase
-│   ├── supabase.ts     # Cliente Supabase
-│   ├── utils.ts        # Formatação, helpers
-│   └── webhook.ts      # Integração n8n
-├── pages/
-│   ├── admin/          # Dashboard, agenda, agendamentos, serviços, horários, config
-│   ├── LandingPage.tsx
-│   └── AdminGuard.tsx  # Proteção de rota
-supabase/
-└── schema.sql          # Schema completo com seed
-```
-
----
-
-## Segurança
-
-- Anon key do Supabase é segura para uso no frontend (somente leitura pública + insert de clientes/agendamentos via RLS)
-- RLS bloqueia acesso cruzado entre empresas
-- Service role key **nunca** vai ao frontend
-- Webhook n8n: em produção, mova para uma Edge Function Supabase para não expor a URL
-
----
-
-## Build
-
-```bash
-npm run build   # Gera dist/
-npm run preview # Preview local do build
-```
+A arquitetura não impede nada disso. É questão de prioridade.
