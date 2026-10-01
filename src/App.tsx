@@ -10,6 +10,7 @@ import AppointmentsPage from './pages/admin/AppointmentsPage'
 import ServicesPage from './pages/admin/ServicesPage'
 import HoursPage from './pages/admin/HoursPage'
 import SettingsPage from './pages/admin/SettingsPage'
+import PwaInstallPrompt from './components/pwa/PwaInstallPrompt'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <PwaInstallPrompt />
         </BusinessProvider>
       </AuthProvider>
     </BrowserRouter>

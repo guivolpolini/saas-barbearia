@@ -1,0 +1,42 @@
+{
+  "id": "saas-barbearia-prime",
+  "name": "Barbearia Prime - Agendamento Online",
+  "short_name": "Barbearia Prime",
+  "description": "Agende seu corte e barba em minutos com nosso assistente interativo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0e",
+  "theme_color": "#0b0b0e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48 72x72 96x96 144x144",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agendar Horário",
+      "short_name": "Agendar",
+      "description": "Abrir o chat de agendamento",
+      "url": "/#booking",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Painel do Barbeiro",
+      "short_name": "Admin",
+      "description": "Acessar agenda e dashboard",
+      "url": "/admin",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["lifestyle", "business", "utilities"]
+}
