@@ -67,8 +67,12 @@ export default function ServicesSection() {
             return (
               <div
                 key={service.id}
-                className={`card p-7 relative flex flex-col justify-between group hover:border-[var(--color-accent)]/60 hover:-translate-y-1 transition-all duration-300 ${
-                  isPopular ? 'border-[var(--color-accent)]/40 bg-gradient-to-b from-[var(--color-surface-2)] to-[var(--color-surface)] shadow-xl' : ''
+                onClick={() => {
+                  const chatBtn = document.querySelector('button[aria-label="Abrir chat de agendamento"]') as HTMLButtonElement | null
+                  if (chatBtn) chatBtn.click()
+                }}
+                className={`card p-7 relative flex flex-col justify-between group cursor-pointer hover:border-[var(--color-accent)]/80 hover:-translate-y-1 transition-all duration-200 ${
+                  isPopular ? 'border-[var(--color-accent)]/40 bg-gradient-to-b from-[var(--color-surface-2)] to-[var(--color-surface)] shadow-lg' : ''
                 }`}
               >
                 {isPopular && (
@@ -80,7 +84,7 @@ export default function ServicesSection() {
 
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30 flex items-center justify-center text-xl text-[var(--color-accent)] group-hover:scale-110 transition-transform">
+                    <div className="w-11 h-11 rounded-xl bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30 flex items-center justify-center text-xl text-[var(--color-accent)] group-hover:scale-110 transition-transform">
                       ✂️
                     </div>
                     <div className="flex items-center gap-1 text-[var(--color-text-muted)] text-xs font-medium bg-[var(--color-surface-2)] px-2.5 py-1 rounded-lg border border-[var(--color-border)]">
@@ -93,30 +97,23 @@ export default function ServicesSection() {
                     {service.name}
                   </h3>
 
-                  <p className="text-[var(--color-text-muted)] text-sm leading-relaxed mb-6">
-                    {service.description ?? 'Atendimento especializado com acabamento detalhado, toalha quente e finalização com pomada premium.'}
+                  <p className="text-[var(--color-text-muted)] text-xs sm:text-sm leading-relaxed mb-6">
+                    {service.description ?? 'Atendimento especializado com acabamento detalhado, toalha quente e finalização premium.'}
                   </p>
                 </div>
 
-                <div className="pt-5 border-t border-[var(--color-border)] mt-auto space-y-4">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-[var(--color-text-muted)] font-medium">Investimento</span>
-                    <span className="text-3xl font-black text-[var(--color-accent)] tracking-tight">
+                <div className="pt-4 border-t border-[var(--color-border)] mt-auto flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-[var(--color-text-muted)] block">Valor</span>
+                    <span className="text-2xl font-black text-[var(--color-accent)] tracking-tight">
                       {formatCurrency(service.price)}
                     </span>
                   </div>
 
-                  <a
-                    href="#booking"
-                    className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-                      isPopular
-                        ? 'btn-primary'
-                        : 'border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
-                    }`}
-                  >
-                    <span>Escolher Serviço</span>
-                    <ArrowRight size={15} />
-                  </a>
+                  <span className="text-xs font-semibold text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)] flex items-center gap-1 transition-colors">
+                    <span>Agendar</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </span>
                 </div>
               </div>
             )

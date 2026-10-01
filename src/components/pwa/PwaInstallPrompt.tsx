@@ -84,8 +84,8 @@ export default function PwaInstallPrompt() {
   return (
     <>
       {/* Floating Install Prompt Banner */}
-      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-40 animate-in fade-in slide-in-from-bottom-5 duration-300">
-        <div className="bg-zinc-900/95 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-2xl shadow-black/80 flex items-center justify-between gap-3">
+      <div className="fixed bottom-4 left-4 right-4 sm:left-6 sm:right-auto sm:max-w-sm z-40 animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div className="bg-zinc-900/95 backdrop-blur-md border border-amber-500/30 rounded-2xl p-3.5 shadow-2xl shadow-black/80 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20">
               <Smartphone className="w-6 h-6 text-zinc-950" />

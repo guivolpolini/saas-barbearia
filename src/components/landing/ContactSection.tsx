@@ -177,13 +177,6 @@ export default function ContactSection() {
                 })}
               </div>
             </div>
-
-            <a
-              href="#booking"
-              className="btn-primary w-full mt-6 py-3 justify-center text-sm font-semibold rounded-xl"
-            >
-              Agendar Horário pelo Chat
-            </a>
           </div>
         </div>
       </div>
