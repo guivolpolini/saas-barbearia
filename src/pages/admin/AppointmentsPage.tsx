@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { format, subDays } from 'date-fns'
+import { format, subDays, addDays } from 'date-fns'
 import { Search, Phone, Calendar, Clock } from 'lucide-react'
 import { useBusiness } from '../../contexts/BusinessContext'
 import { getAppointmentsRange, updateAppointmentStatus } from '../../lib/api'
@@ -30,7 +30,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     if (!business) return
     const from = format(subDays(new Date(), 30), 'yyyy-MM-dd')
-    const to = format(new Date(), 'yyyy-MM-dd')
+    const to = format(addDays(new Date(), 60), 'yyyy-MM-dd')
     getAppointmentsRange(business.id, from, to).then(data => {
       setAppointments((data as ApptExt[]).reverse())
       setLoading(false)
@@ -56,7 +56,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-xl font-bold">Agendamentos (últimos 30 dias)</h2>
+      <h2 className="text-xl font-bold">Todos os Agendamentos</h2>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">

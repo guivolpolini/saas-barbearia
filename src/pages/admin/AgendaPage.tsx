@@ -56,7 +56,7 @@ export default function AgendaPage() {
             <ChevronLeft size={18} />
           </button>
           <span className="text-sm font-medium px-3">
-            {format(weekStart, "d MMM", { locale: ptBR })} – {format(addDays(weekStart, 6), "d MMM yyyy", { locale: ptBR })}
+            {format(weekStart, "d MMM", { locale: ptBR })} - {format(addDays(weekStart, 6), "d MMM yyyy", { locale: ptBR })}
           </span>
           <button
             onClick={() => setWeekStart(w => addWeeks(w, 1))}
@@ -97,7 +97,7 @@ export default function AgendaPage() {
                     </div>
                   ))}
                   {appts.length === 0 && (
-                    <p className="text-xs text-[var(--color-text-muted)] text-center py-2 opacity-50">—</p>
+                    <p className="text-xs text-[var(--color-text-muted)] text-center py-2 opacity-50">-</p>
                   )}
                 </div>
               </div>
