@@ -92,7 +92,7 @@ function getNextDays(count: number): string[] {
 }
 
 export default function ChatWidget() {
-  const { business, services, hours } = useBusiness()
+  const { business, services, hours, professionals } = useBusiness()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [step, setStep] = useState<Step>('welcome')
@@ -160,8 +160,43 @@ export default function ChatWidget() {
 
     addMsg(userMsg(optionText))
     setBooking(prev => ({ ...prev, service }))
-    setBusy(true)
 
+    const activeProfs = professionals.filter(p => p.active)
+    if (activeProfs.length > 0) {
+      setStep('professional')
+      const profOptions = [
+        ...activeProfs.map(p => (p.role ? `${p.name} (${p.role})` : p.name)),
+        '💈 Qualquer profissional disponível',
+      ]
+
+      setTimeout(() => {
+        addBotMsg(
+          `Excelente escolha! ✂️ **${service.name}** (${formatCurrency(service.price)}).\n\nVocê tem preferência de profissional para o atendimento?`,
+          profOptions
+        )
+      }, 400)
+    } else {
+      generateAndAskDates(service)
+    }
+  }
+
+  async function handleProfessionalSelect(optionText: string) {
+    addMsg(userMsg(optionText))
+    let selectedProf: Professional | null = null
+
+    if (!optionText.includes('Qualquer profissional')) {
+      selectedProf =
+        professionals.find(p => optionText.startsWith(p.name) || optionText.includes(p.name)) ?? null
+    }
+
+    setBooking(prev => ({ ...prev, professional: selectedProf }))
+    if (booking.service) {
+      generateAndAskDates(booking.service, selectedProf)
+    }
+  }
+
+  function generateAndAskDates(service: Service, prof?: Professional | null) {
+    setBusy(true)
     try {
       // Gera datas disponíveis
       const candidates = getNextDays(21)
@@ -187,9 +222,10 @@ export default function ChatWidget() {
         return `${format(d, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
       })
 
+      const profText = prof ? `com **${prof.name}**` : ''
       setTimeout(() => {
         addBotMsg(
-          `Excelente escolha! ✂️ **${service.name}** (${formatCurrency(service.price)}).\n\nPara qual dia você prefere?`,
+          `Combinado! ${profText ? profText + ' ✂️\n\n' : ''}Para qual dia você prefere o agendamento?`,
           dateLabels
         )
       }, 400)
@@ -290,13 +326,15 @@ export default function ChatWidget() {
     setBooking(prev => ({ ...prev, phone }))
     setStep('confirm')
 
-    const { service, date, time, name } = booking
+    const { service, professional, date, time, name } = booking
     const displayPhone = phone
+    const profName = professional ? professional.name : 'Qualquer disponível'
 
     setTimeout(() => {
       addBotMsg(
         `Perfeito! Veja o resumo do seu agendamento:\n\n` +
           `📋 **Serviço:** ${service?.name}\n` +
+          `💈 **Profissional:** ${profName}\n` +
           `💰 **Valor:** ${formatCurrency(service?.price ?? 0)}\n` +
           `📅 **Data:** ${formatDate(date)}\n` +
           `⏰ **Horário:** ${time}\n` +
@@ -350,6 +388,7 @@ export default function ChatWidget() {
     const result = await createAppointment({
       businessId: business.id,
       serviceId: booking.service.id,
+      professionalId: booking.professional?.id || null,
       customerName: booking.name,
       phone: booking.phone,
       date: booking.date,
@@ -374,6 +413,8 @@ export default function ChatWidget() {
       business_id: business.id,
       service_id: booking.service.id,
       service_name: booking.service.name,
+      professional_id: booking.professional?.id || null,
+      professional_name: booking.professional?.name || 'Qualquer profissional disponível',
       customer_name: booking.name,
       phone: booking.phone,
       date: booking.date,
@@ -387,9 +428,10 @@ export default function ChatWidget() {
     setBusy(false)
     setStep('done')
 
+    const profText = booking.professional ? `com **${booking.professional.name}** ` : ''
     addBotMsg(
       `🎉 **Agendamento Confirmado com Sucesso!**\n\n` +
-        `Seu horário está garantido para **${formatDate(booking.date)} às ${booking.time}**.\n\n` +
+        `Seu horário está garantido ${profText}para **${formatDate(booking.date)} às ${booking.time}**.\n\n` +
         `📍 **Local:** ${business.address ?? 'Endereço principal'}, ${business.city ?? 'Centro'}\n\n` +
         `_Clique nos botões abaixo para salvar na sua agenda:_`,
       undefined,
@@ -453,6 +495,8 @@ export default function ChatWidget() {
       resetChat()
     } else if (step === 'service') {
       handleServiceSelect(option)
+    } else if (step === 'professional') {
+      handleProfessionalSelect(option)
     } else if (step === 'date') {
       handleDateSelect(option)
     } else if (step === 'time') {
@@ -465,7 +509,7 @@ export default function ChatWidget() {
     booking.service && booking.date && booking.time
       ? {
           title: `${booking.service.name} - ${business?.name ?? 'Barbearia Prime'}`,
-          description: `Agendamento de ${booking.service.name} (${formatCurrency(booking.service.price)}) para ${booking.name || 'Cliente'}.`,
+          description: `Agendamento de ${booking.service.name} (${formatCurrency(booking.service.price)}) com ${booking.professional?.name || 'Profissional da Barbearia'} para ${booking.name || 'Cliente'}.`,
           location: `${business?.address ?? 'Rua das Palmeiras, 123'}, ${business?.city ?? 'São Paulo'}`,
           date: booking.date,
           startTime: booking.time,

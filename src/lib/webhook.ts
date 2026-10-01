@@ -11,6 +11,8 @@ export interface WebhookPayload {
   business_id: string
   service_id: string
   service_name: string
+  professional_id?: string | null
+  professional_name?: string
   customer_name: string
   phone: string
   date: string        // ISO: YYYY-MM-DD

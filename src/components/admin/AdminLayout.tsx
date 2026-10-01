@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Calendar, List, Scissors, Clock, Settings, LogOut, Menu, X, ChevronRight
+  LayoutDashboard, Calendar, List, Scissors, Clock, Settings, LogOut, Menu, X, ChevronRight, Users
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useBusiness } from '../../contexts/BusinessContext'
@@ -11,6 +11,7 @@ const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
   { label: 'Agenda', icon: Calendar, path: '/admin/agenda' },
   { label: 'Agendamentos', icon: List, path: '/admin/appointments' },
+  { label: 'Equipe / Barbeiros', icon: Users, path: '/admin/team' },
   { label: 'Serviços', icon: Scissors, path: '/admin/services' },
   { label: 'Horários', icon: Clock, path: '/admin/hours' },
   { label: 'Configurações', icon: Settings, path: '/admin/settings' },

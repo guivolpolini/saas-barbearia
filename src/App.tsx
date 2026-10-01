@@ -7,6 +7,7 @@ import AdminGuard from './pages/AdminGuard'
 import DashboardPage from './pages/admin/DashboardPage'
 import AgendaPage from './pages/admin/AgendaPage'
 import AppointmentsPage from './pages/admin/AppointmentsPage'
+import TeamPage from './pages/admin/TeamPage'
 import ServicesPage from './pages/admin/ServicesPage'
 import HoursPage from './pages/admin/HoursPage'
 import SettingsPage from './pages/admin/SettingsPage'
@@ -29,6 +30,7 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="agenda" element={<AgendaPage />} />
               <Route path="appointments" element={<AppointmentsPage />} />
+              <Route path="team" element={<TeamPage />} />
               <Route path="services" element={<ServicesPage />} />
               <Route path="hours" element={<HoursPage />} />
               <Route path="settings" element={<SettingsPage />} />

@@ -108,6 +108,7 @@ export async function getAppointmentsRange(
     .select(`
       *,
       services(name, duration_min, price),
+      professionals(id, name, role),
       customers(name, phone, email)
     `)
     .eq('business_id', businessId)
@@ -188,6 +189,7 @@ export function generateTimeSlots(
 export async function createAppointment(payload: {
   businessId: string
   serviceId: string
+  professionalId?: string | null
   customerName: string
   phone: string
   date: string
@@ -214,6 +216,7 @@ export async function createAppointment(payload: {
     .insert({
       business_id: payload.businessId,
       service_id: payload.serviceId,
+      professional_id: payload.professionalId || null,
       customer_id: customerData.id,
       date: payload.date,
       start_time: payload.startTime,
@@ -244,3 +247,4 @@ export async function updateAppointmentStatus(
 
   return !error
 }
+

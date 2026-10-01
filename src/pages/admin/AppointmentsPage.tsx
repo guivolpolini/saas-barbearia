@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, subDays, addDays } from 'date-fns'
-import { Search, Phone, Calendar, Clock } from 'lucide-react'
+import { Search, Phone, Calendar, Clock, User } from 'lucide-react'
 import { useBusiness } from '../../contexts/BusinessContext'
 import { getAppointmentsRange, updateAppointmentStatus } from '../../lib/api'
 import { formatCurrency, formatDateShort } from '../../lib/utils'
@@ -8,6 +8,7 @@ import type { Appointment } from '../../lib/database.types'
 
 interface ApptExt extends Appointment {
   services?: { name: string; price: number; duration_min: number }
+  professionals?: { id: string; name: string; role: string | null }
   customers?: { name: string; phone: string }
 }
 
@@ -20,11 +21,12 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 export default function AppointmentsPage() {
-  const { business } = useBusiness()
+  const { business, professionals } = useBusiness()
   const [appointments, setAppointments] = useState<ApptExt[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [profFilter, setProfFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export default function AppointmentsPage() {
     const phone = (a as any).customers?.phone ?? ''
     const matchSearch = !search || name.includes(search.toLowerCase()) || phone.includes(search)
     const matchStatus = statusFilter === 'all' || a.status === statusFilter
-    return matchSearch && matchStatus
+    const matchProf = profFilter === 'all' || (a as any).professionals?.id === profFilter || (profFilter === 'none' && !(a as any).professionals)
+    return matchSearch && matchStatus && matchProf
   })
 
   return (
@@ -66,9 +69,22 @@ export default function AppointmentsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="input pl-9 text-sm"
-            placeholder="Buscar por nome ou telefone..."
+            placeholder="Buscar por cliente ou telefone..."
           />
         </div>
+
+        <select
+          value={profFilter}
+          onChange={e => setProfFilter(e.target.value)}
+          className="input text-sm w-full sm:w-48"
+        >
+          <option value="all">Todos os barbeiros</option>
+          {professionals.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+          <option value="none">Sem profissional fixo</option>
+        </select>
+
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
@@ -93,6 +109,7 @@ export default function AppointmentsPage() {
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)] text-xs uppercase">
                   <th className="text-left px-5 py-3 font-medium">Cliente</th>
+                  <th className="text-left px-5 py-3 font-medium">Barbeiro</th>
                   <th className="text-left px-5 py-3 font-medium">Serviço</th>
                   <th className="text-left px-5 py-3 font-medium">Data</th>
                   <th className="text-left px-5 py-3 font-medium">Horário</th>
@@ -104,6 +121,7 @@ export default function AppointmentsPage() {
               <tbody className="divide-y divide-[var(--color-border)]">
                 {filtered.map(appt => {
                   const status = STATUS_LABELS[appt.status] ?? STATUS_LABELS.pending
+                  const profName = (appt as any).professionals?.name
                   return (
                     <tr key={appt.id} className="hover:bg-[var(--color-surface-2)] transition-colors">
                       <td className="px-5 py-3">
@@ -112,6 +130,16 @@ export default function AppointmentsPage() {
                           <Phone size={10} />
                           {(appt as any).customers?.phone ?? '—'}
                         </p>
+                      </td>
+                      <td className="px-5 py-3">
+                        {profName ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20">
+                            <User size={11} />
+                            {profName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--color-text-muted)] italic">Qualquer barbeiro</span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-[var(--color-text-muted)]">{(appt as any).services?.name ?? '—'}</td>
                       <td className="px-5 py-3 text-[var(--color-text-muted)]">{formatDateShort(appt.date)}</td>
@@ -143,3 +171,4 @@ export default function AppointmentsPage() {
     </div>
   )
 }
+
