@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  MessageCircle,
   X,
   Send,
   Scissors,
-  ChevronLeft,
   Calendar,
-  Clock,
-  User,
   CheckCircle2,
   ExternalLink,
   Download,
@@ -30,13 +26,11 @@ import {
   calcEndTime,
   maskPhone,
   isValidPhone,
-  todayISO,
   generateGoogleCalendarUrl,
   downloadIcsFile,
-  dayNameShort,
 } from '../../lib/utils'
 import type { Service, Professional } from '../../lib/database.types'
-import { format, addDays, parse, isBefore, startOfDay } from 'date-fns'
+import { format, addDays, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 // ============================================================
@@ -98,7 +92,7 @@ function getNextDays(count: number): string[] {
 }
 
 export default function ChatWidget() {
-  const { business, services, hours, professionals } = useBusiness()
+  const { business, services, hours } = useBusiness()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [step, setStep] = useState<Step>('welcome')
@@ -152,42 +146,57 @@ export default function ChatWidget() {
       )
       setTimeout(() => {
         addBotMsg('Qual serviço você deseja realizar?', serviceOptions)
-      }, 700)
-    }, 350)
+      }, 600)
+    }, 300)
   }
 
   async function handleServiceSelect(optionText: string) {
-    const service = services.find(s => optionText.startsWith(s.name))
+    // Busca exata pelo nome do serviço
+    const service =
+      services.find(s => optionText.startsWith(s.name + ' - ') || optionText === s.name) ||
+      services.find(s => optionText.includes(s.name))
+
     if (!service) return
 
     addMsg(userMsg(optionText))
     setBooking(prev => ({ ...prev, service }))
     setBusy(true)
 
-    // Gera datas disponíveis
-    const candidates = getNextDays(21)
-    const openDays = candidates.filter(iso => {
-      const d = parse(iso, 'yyyy-MM-dd', new Date())
-      const dow = d.getDay()
-      const hour = hours.find(h => h.day_of_week === dow)
-      return hour && !hour.is_closed && hour.open_time && hour.close_time
-    })
+    try {
+      // Gera datas disponíveis
+      const candidates = getNextDays(21)
+      const openDays = candidates.filter(iso => {
+        try {
+          const d = parse(iso, 'yyyy-MM-dd', new Date())
+          if (isNaN(d.getTime())) return false
+          const dow = d.getDay()
+          const hour = hours.find(h => h.day_of_week === dow)
+          return hour && !hour.is_closed && hour.open_time && hour.close_time
+        } catch {
+          return false
+        }
+      })
 
-    setAvailableDates(openDays.slice(0, 7))
-    setBusy(false)
-    setStep('date')
+      const selectedDays = openDays.slice(0, 7)
+      setAvailableDates(selectedDays)
+      setBusy(false)
+      setStep('date')
 
-    const dateLabels = openDays.slice(0, 7).map(iso => {
-      const d = parse(iso, 'yyyy-MM-dd', new Date())
-      return `${format(d, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
-    })
+      const dateLabels = selectedDays.map(iso => {
+        const d = parse(iso, 'yyyy-MM-dd', new Date())
+        return `${format(d, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
+      })
 
-    setTimeout(() => {
-      addBotMsg(
-        `Excelente escolha! ✂️ **${service.name}** (${formatCurrency(service.price)}).\n\nPara qual dia você prefere?`,
-        dateLabels
-      )
-    }, 400)
+      setTimeout(() => {
+        addBotMsg(
+          `Excelente escolha! ✂️ **${service.name}** (${formatCurrency(service.price)}).\n\nPara qual dia você prefere?`,
+          dateLabels
+        )
+      }, 400)
+    } catch (err) {
+      console.error('Error generating dates:', err)
+      setBusy(false)
+    }
   }
 
   async function handleDateSelect(optionText: string) {
@@ -202,42 +211,50 @@ export default function ChatWidget() {
 
     if (!business || !booking.service) return
 
-    // Busca agendamentos do dia para calcular slots
-    const booked = await getAppointmentsByDate(business.id, date)
-    const d = parse(date, 'yyyy-MM-dd', new Date())
-    const dow = d.getDay()
-    const hour = hours.find(h => h.day_of_week === dow)
+    try {
+      // Busca agendamentos do dia para calcular slots livres
+      const booked = await getAppointmentsByDate(business.id, date)
+      const d = parse(date, 'yyyy-MM-dd', new Date())
+      const dow = d.getDay()
+      const hour = hours.find(h => h.day_of_week === dow)
 
-    const slots =
-      hour?.open_time && hour?.close_time
-        ? generateTimeSlots(
-            hour.open_time.substring(0, 5),
-            hour.close_time.substring(0, 5),
-            booking.service.duration_min,
-            booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
+      const slots =
+        hour?.open_time && hour?.close_time
+          ? generateTimeSlots(
+              hour.open_time.substring(0, 5),
+              hour.close_time.substring(0, 5),
+              booking.service.duration_min,
+              booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
+            )
+          : []
+
+      setAvailableSlots(slots)
+      setBusy(false)
+
+      if (slots.length === 0) {
+        setTimeout(() => {
+          addBotMsg(
+            'Infelizmente não há horários livres neste dia. Por favor, selecione outra data:',
+            availableDates.map(iso => {
+              const dt = parse(iso, 'yyyy-MM-dd', new Date())
+              return `${format(dt, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
+            })
           )
-        : []
+        }, 400)
+        return
+      }
 
-    setAvailableSlots(slots)
-    setBusy(false)
-
-    if (slots.length === 0) {
+      setStep('time')
       setTimeout(() => {
         addBotMsg(
-          'Infelizmente não há horários livres neste dia. Por favor, selecione outra data:',
-          availableDates.map(iso => {
-            const dt = parse(iso, 'yyyy-MM-dd', new Date())
-            return `${format(dt, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
-          })
+          `Temos estes horários livres para ${formatDate(date)}. Qual horário fica melhor para você?`,
+          slots
         )
       }, 400)
-      return
+    } catch (err) {
+      console.error('Error finding slots:', err)
+      setBusy(false)
     }
-
-    setStep('time')
-    setTimeout(() => {
-      addBotMsg(`Temos estes horários livres para ${formatDate(date)}. Qual horário fica melhor para você?`, slots)
-    }, 400)
   }
 
   async function handleTimeSelect(time: string) {
@@ -298,12 +315,12 @@ export default function ChatWidget() {
     setBusy(true)
     const endTime = calcEndTime(booking.time, booking.service.duration_min)
 
-    // Re-check slot availability
+    // Re-verifica disponibilidade
     const available = await checkSlotAvailability(
       business.id,
       booking.date,
       booking.time + ':00',
-      endTime + ':00'
+      endTime ? endTime + ':00' : '23:59:00'
     )
 
     if (!available) {
@@ -337,7 +354,7 @@ export default function ChatWidget() {
       phone: booking.phone,
       date: booking.date,
       startTime: booking.time + ':00',
-      endTime: endTime + ':00',
+      endTime: endTime ? endTime + ':00' : '23:59:00',
     })
 
     if (!result.success) {
@@ -443,17 +460,18 @@ export default function ChatWidget() {
     }
   }
 
-  // Prepara dados do calendário para o step 'done'
-  const calendarEvent = booking.service
-    ? {
-        title: `${booking.service.name} - ${business?.name ?? 'Barbearia Prime'}`,
-        description: `Agendamento de ${booking.service.name} (${formatCurrency(booking.service.price)}) com ${booking.name}.`,
-        location: `${business?.address ?? 'Rua das Palmeiras, 123'}, ${business?.city ?? 'São Paulo'}`,
-        date: booking.date,
-        startTime: booking.time,
-        endTime: calcEndTime(booking.time, booking.service.duration_min),
-      }
-    : null
+  // Prepara dados do calendário com segurança estrita (somente quando todos os dados existirem)
+  const calendarEvent =
+    booking.service && booking.date && booking.time
+      ? {
+          title: `${booking.service.name} - ${business?.name ?? 'Barbearia Prime'}`,
+          description: `Agendamento de ${booking.service.name} (${formatCurrency(booking.service.price)}) para ${booking.name || 'Cliente'}.`,
+          location: `${business?.address ?? 'Rua das Palmeiras, 123'}, ${business?.city ?? 'São Paulo'}`,
+          date: booking.date,
+          startTime: booking.time,
+          endTime: calcEndTime(booking.time, booking.service.duration_min) || booking.time,
+        }
+      : null
 
   return (
     <>

@@ -10,25 +10,46 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(dateStr: string): string {
-  const date = parse(dateStr, 'yyyy-MM-dd', new Date())
-  return format(date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  if (!dateStr) return ''
+  try {
+    const date = parse(dateStr, 'yyyy-MM-dd', new Date())
+    if (isNaN(date.getTime())) return dateStr
+    return format(date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  } catch {
+    return dateStr
+  }
 }
 
 export function formatDateShort(dateStr: string): string {
-  const date = parse(dateStr, 'yyyy-MM-dd', new Date())
-  return format(date, 'dd/MM/yyyy', { locale: ptBR })
+  if (!dateStr) return ''
+  try {
+    const date = parse(dateStr, 'yyyy-MM-dd', new Date())
+    if (isNaN(date.getTime())) return dateStr
+    return format(date, 'dd/MM/yyyy', { locale: ptBR })
+  } catch {
+    return dateStr
+  }
 }
 
 export function formatTime(timeStr: string): string {
+  if (!timeStr) return ''
   return timeStr.substring(0, 5)
 }
 
 export function calcEndTime(startTime: string, durationMin: number): string {
-  const base = parse(`2000-01-01 ${startTime}`, 'yyyy-MM-dd HH:mm', new Date())
-  return format(addMinutes(base, durationMin), 'HH:mm')
+  if (!startTime) return ''
+  try {
+    const cleanTime = startTime.substring(0, 5)
+    const base = parse(`2000-01-01 ${cleanTime}`, 'yyyy-MM-dd HH:mm', new Date())
+    if (isNaN(base.getTime())) return ''
+    return format(addMinutes(base, durationMin), 'HH:mm')
+  } catch {
+    return ''
+  }
 }
 
 export function formatDuration(minutes: number): string {
+  if (!minutes || isNaN(minutes)) return ''
   if (minutes < 60) return `${minutes} min`
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
@@ -81,7 +102,6 @@ export function getBusinessStatus(hours: BusinessHour[]): {
   const todayHours = hours.find(h => h.day_of_week === currentDay)
 
   if (!todayHours || todayHours.is_closed || !todayHours.open_time || !todayHours.close_time) {
-    // Procura próximo dia aberto
     const nextOpen = hours.find(h => !h.is_closed && h.open_time)
     const nextDayName = nextOpen ? dayNameShort(nextOpen.day_of_week) : 'em breve'
     return {
@@ -128,8 +148,9 @@ export function generateGoogleCalendarUrl(event: {
   startTime: string // HH:mm
   endTime: string   // HH:mm
 }): string {
-  const startIso = `${event.date.replace(/-/g, '')}T${event.startTime.replace(':', '')}00`
-  const endIso = `${event.date.replace(/-/g, '')}T${event.endTime.replace(':', '')}00`
+  if (!event.date || !event.startTime) return '#'
+  const startIso = `${event.date.replace(/-/g, '')}T${event.startTime.replace(':', '').substring(0, 4)}00`
+  const endIso = `${event.date.replace(/-/g, '')}T${(event.endTime || event.startTime).replace(':', '').substring(0, 4)}00`
 
   const params = new URLSearchParams({
     action: 'TEMPLATE',
@@ -150,8 +171,9 @@ export function downloadIcsFile(event: {
   startTime: string // HH:mm
   endTime: string   // HH:mm
 }) {
-  const startIso = `${event.date.replace(/-/g, '')}T${event.startTime.replace(':', '')}00`
-  const endIso = `${event.date.replace(/-/g, '')}T${event.endTime.replace(':', '')}00`
+  if (!event.date || !event.startTime) return
+  const startIso = `${event.date.replace(/-/g, '')}T${event.startTime.replace(':', '').substring(0, 4)}00`
+  const endIso = `${event.date.replace(/-/g, '')}T${(event.endTime || event.startTime).replace(':', '').substring(0, 4)}00`
   const nowIso = format(new Date(), "yyyyMMdd'T'HHmmss'Z'")
 
   const icsContent = [
