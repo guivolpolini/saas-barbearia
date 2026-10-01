@@ -1,27 +1,9 @@
-import { useState } from 'react'
-import { Clock, ArrowRight, Sparkles, Check } from 'lucide-react'
+import { Clock, ArrowRight, Sparkles } from 'lucide-react'
 import { useBusiness } from '../../contexts/BusinessContext'
 import { formatCurrency, formatDuration } from '../../lib/utils'
 
 export default function ServicesSection() {
   const { services } = useBusiness()
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-
-  const categories = [
-    { id: 'all', label: 'Todos os Serviços' },
-    { id: 'corte', label: 'Cortes' },
-    { id: 'barba', label: 'Barba' },
-    { id: 'combo', label: 'Combos' },
-  ]
-
-  const filteredServices = services.filter(service => {
-    if (selectedCategory === 'all') return true
-    const nameLower = service.name.toLowerCase()
-    if (selectedCategory === 'corte') return nameLower.includes('corte') && !nameLower.includes('barba')
-    if (selectedCategory === 'barba') return nameLower.includes('barba') && !nameLower.includes('corte')
-    if (selectedCategory === 'combo') return nameLower.includes('combo') || (nameLower.includes('corte') && nameLower.includes('barba')) || nameLower.includes('+')
-    return true
-  })
 
   return (
     <section id="services" className="py-24 relative overflow-hidden bg-[var(--color-surface)]">
@@ -30,7 +12,7 @@ export default function ServicesSection() {
 
       <div className="relative max-w-6xl mx-auto px-4">
         {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-12">
+        <div className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-[var(--color-accent)] text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20">
             Tabela de Preços
           </span>
@@ -40,28 +22,11 @@ export default function ServicesSection() {
           <p className="text-[var(--color-text-muted)] text-sm sm:text-base mt-2">
             Produtos de primeira linha, técnicas clássicas e modernas com atendimento impecável.
           </p>
-
-          {/* Category Tabs */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
-            {categories.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                  selectedCategory === cat.id
-                    ? 'bg-[var(--color-accent)] text-black shadow-md shadow-[var(--color-accent)]/20'
-                    : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)]'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Services Grid */}
         <div className="grid md:grid-cols-3 gap-6">
-          {filteredServices.map((service, i) => {
+          {services.map((service, i) => {
             const isPopular = i === 1 || service.name.toLowerCase().includes('+') || service.name.toLowerCase().includes('combo')
 
             return (
