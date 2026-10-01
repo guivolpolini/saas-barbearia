@@ -39,6 +39,27 @@ export async function getServices(businessId: string): Promise<Service[]> {
 }
 
 // ============================================================
+// Professionals (Barbers / Attendants)
+// ============================================================
+export async function getProfessionals(businessId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('professionals')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('active', true)
+    .order('name')
+
+  if (error || !data || data.length === 0) {
+    return [
+      { id: 'p1', business_id: businessId, name: 'Marcos Silva', role: 'Barbeiro Master', active: true },
+      { id: 'p2', business_id: businessId, name: 'Lucas Prado', role: 'Especialista em Barba', active: true },
+      { id: 'p3', business_id: businessId, name: 'Diego Ramos', role: 'Cortes Clássicos & Fade', active: true },
+    ]
+  }
+  return data
+}
+
+// ============================================================
 // Business Hours
 // ============================================================
 export async function getBusinessHours(businessId: string): Promise<BusinessHour[]> {

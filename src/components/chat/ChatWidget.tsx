@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageCircle, X, Send, Scissors, ChevronLeft } from 'lucide-react'
+import {
+  MessageCircle,
+  X,
+  Send,
+  Scissors,
+  ChevronLeft,
+  Calendar,
+  Clock,
+  User,
+  CheckCircle2,
+  ExternalLink,
+  Download,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react'
 import clsx from 'clsx'
 import { useBusiness } from '../../contexts/BusinessContext'
 import {
@@ -17,8 +31,11 @@ import {
   maskPhone,
   isValidPhone,
   todayISO,
+  generateGoogleCalendarUrl,
+  downloadIcsFile,
+  dayNameShort,
 } from '../../lib/utils'
-import type { Service } from '../../lib/database.types'
+import type { Service, Professional } from '../../lib/database.types'
 import { format, addDays, parse, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -27,6 +44,7 @@ import { ptBR } from 'date-fns/locale'
 // ============================================================
 type Step =
   | 'welcome'
+  | 'professional'
   | 'service'
   | 'date'
   | 'time'
@@ -38,6 +56,7 @@ type Step =
 
 interface BookingState {
   service: Service | null
+  professional: Professional | null
   date: string
   time: string
   name: string
@@ -50,18 +69,16 @@ interface Message {
   from: 'bot' | 'user'
   text: string
   options?: string[]
+  type?: 'text' | 'service-list' | 'date-list' | 'slot-list' | 'summary-done'
   isLoading?: boolean
 }
 
-// ============================================================
-// Helpers
-// ============================================================
 function buildId() {
   return Math.random().toString(36).slice(2)
 }
 
-function botMsg(text: string, options?: string[]): Message {
-  return { id: buildId(), from: 'bot', text, options }
+function botMsg(text: string, options?: string[], type: Message['type'] = 'text'): Message {
+  return { id: buildId(), from: 'bot', text, options, type }
 }
 
 function userMsg(text: string): Message {
@@ -72,7 +89,7 @@ function getNextDays(count: number): string[] {
   const days: string[] = []
   let d = new Date()
   d.setHours(0, 0, 0, 0)
-  d = addDays(d, 1) // start from tomorrow
+  d = addDays(d, 1) // Começa a partir de amanhã
   while (days.length < count) {
     days.push(format(d, 'yyyy-MM-dd'))
     d = addDays(d, 1)
@@ -80,21 +97,14 @@ function getNextDays(count: number): string[] {
   return days
 }
 
-function labelDate(iso: string): string {
-  const date = parse(iso, 'yyyy-MM-dd', new Date())
-  return format(date, "EEE, dd/MM", { locale: ptBR })
-}
-
-// ============================================================
-// Chat
-// ============================================================
 export default function ChatWidget() {
-  const { business, services, hours } = useBusiness()
+  const { business, services, hours, professionals } = useBusiness()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [step, setStep] = useState<Step>('welcome')
   const [booking, setBooking] = useState<BookingState>({
     service: null,
+    professional: null,
     date: '',
     time: '',
     name: '',
@@ -126,111 +136,137 @@ export default function ChatWidget() {
     setMessages(prev => [...prev, msg])
   }
 
-  function addBotMsg(text: string, options?: string[]) {
-    addMsg(botMsg(text, options))
+  function addBotMsg(text: string, options?: string[], type: Message['type'] = 'text') {
+    addMsg(botMsg(text, options, type))
   }
 
   function initChat() {
     setStep('service')
-    const serviceOptions = services.map(s =>
-      `${s.name} — ${formatCurrency(s.price)} (${formatDuration(s.duration_min)})`
+    const serviceOptions = services.map(
+      s => `${s.name} - ${formatCurrency(s.price)} (${formatDuration(s.duration_min)})`
     )
+
     setTimeout(() => {
-      addBotMsg(`Olá! 👋 Bem-vindo à **${business?.name}**.\n\nSou seu assistente de agendamento. Vamos marcar seu horário?`)
+      addBotMsg(
+        `Olá! 👋 Seja bem-vindo à **${business?.name ?? 'Barbearia Prime'}**.\n\nSou seu assistente de agendamento online. Vamos marcar seu horário em menos de 2 minutos?`
+      )
       setTimeout(() => {
-        addBotMsg('Qual serviço você deseja?', serviceOptions)
-      }, 800)
-    }, 400)
+        addBotMsg('Qual serviço você deseja realizar?', serviceOptions)
+      }, 700)
+    }, 350)
   }
 
   async function handleServiceSelect(optionText: string) {
-    const service = services.find(s =>
-      optionText.startsWith(s.name)
-    )
+    const service = services.find(s => optionText.startsWith(s.name))
     if (!service) return
 
     addMsg(userMsg(optionText))
     setBooking(prev => ({ ...prev, service }))
-
     setBusy(true)
-    // Build available dates (next 14 days, excluding closed days)
+
+    // Gera datas disponíveis
     const candidates = getNextDays(21)
     const openDays = candidates.filter(iso => {
       const d = parse(iso, 'yyyy-MM-dd', new Date())
-      const dow = d.getDay() // 0=sun
+      const dow = d.getDay()
       const hour = hours.find(h => h.day_of_week === dow)
-      return hour && !hour.is_closed
-    }).slice(0, 14)
-    setAvailableDates(openDays)
-    setBusy(false)
+      return hour && !hour.is_closed && hour.open_time && hour.close_time
+    })
 
+    setAvailableDates(openDays.slice(0, 7))
+    setBusy(false)
     setStep('date')
-    const dateOptions = openDays.map(labelDate)
-    addBotMsg('Ótima escolha! 📅 Qual data você prefere?', dateOptions)
+
+    const dateLabels = openDays.slice(0, 7).map(iso => {
+      const d = parse(iso, 'yyyy-MM-dd', new Date())
+      return `${format(d, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
+    })
+
+    setTimeout(() => {
+      addBotMsg(
+        `Excelente escolha! ✂️ **${service.name}** (${formatCurrency(service.price)}).\n\nPara qual dia você prefere?`,
+        dateLabels
+      )
+    }, 400)
   }
 
   async function handleDateSelect(optionText: string) {
-    const idx = availableDates.findIndex(d => labelDate(d) === optionText)
-    const selectedDate = idx >= 0 ? availableDates[idx] : ''
-    if (!selectedDate || !booking.service) return
+    const match = optionText.match(/\[(\d{4}-\d{2}-\d{2})\]/)
+    const date = match ? match[1] : availableDates.find(d => optionText.includes(d))
 
-    addMsg(userMsg(optionText))
-    setBooking(prev => ({ ...prev, date: selectedDate }))
+    if (!date) return
 
+    addMsg(userMsg(optionText.replace(/\[\d{4}-\d{2}-\d{2}\]/, '').trim()))
+    setBooking(prev => ({ ...prev, date }))
     setBusy(true)
-    const d = parse(selectedDate, 'yyyy-MM-dd', new Date())
+
+    if (!business || !booking.service) return
+
+    // Busca agendamentos do dia para calcular slots
+    const booked = await getAppointmentsByDate(business.id, date)
+    const d = parse(date, 'yyyy-MM-dd', new Date())
     const dow = d.getDay()
     const hour = hours.find(h => h.day_of_week === dow)
 
-    if (!hour || hour.is_closed || !hour.open_time || !hour.close_time) {
-      addBotMsg('Ops, esse dia está fechado. Escolha outra data.')
-      setBusy(false)
-      return
-    }
+    const slots =
+      hour?.open_time && hour?.close_time
+        ? generateTimeSlots(
+            hour.open_time.substring(0, 5),
+            hour.close_time.substring(0, 5),
+            booking.service.duration_min,
+            booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
+          )
+        : []
 
-    const booked = await getAppointmentsByDate(business!.id, selectedDate)
-    const slots = generateTimeSlots(
-      hour.open_time.substring(0, 5),
-      hour.close_time.substring(0, 5),
-      booking.service.duration_min,
-      booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
-    )
     setAvailableSlots(slots)
     setBusy(false)
 
     if (slots.length === 0) {
-      setStep('date')
-      addBotMsg('Sem horários disponíveis nessa data. 😕 Escolha outra data:', availableDates.map(labelDate))
+      setTimeout(() => {
+        addBotMsg(
+          'Infelizmente não há horários livres neste dia. Por favor, selecione outra data:',
+          availableDates.map(iso => {
+            const dt = parse(iso, 'yyyy-MM-dd', new Date())
+            return `${format(dt, "EEE, dd/MM", { locale: ptBR })} [${iso}]`
+          })
+        )
+      }, 400)
       return
     }
 
     setStep('time')
-    addBotMsg('Perfeito! ⏰ Qual horário funciona para você?', slots)
+    setTimeout(() => {
+      addBotMsg(`Temos estes horários livres para ${formatDate(date)}. Qual horário fica melhor para você?`, slots)
+    }, 400)
   }
 
-  function handleTimeSelect(time: string) {
-    addMsg(userMsg(time))
+  async function handleTimeSelect(time: string) {
+    addMsg(userMsg(`⏰ ${time}`))
     setBooking(prev => ({ ...prev, time }))
     setStep('name')
-    setTimeout(() => addBotMsg('Ótimo! Qual é o seu nome completo?'), 300)
+
+    setTimeout(() => {
+      addBotMsg('Perfeito! Agora, por favor, me diga seu **nome completo**:')
+    }, 400)
   }
 
   function handleNameInput(name: string) {
-    const trimmed = name.trim()
-    if (trimmed.length < 2) {
-      addBotMsg('Por favor, informe seu nome completo.')
+    if (name.trim().length < 3) {
+      addBotMsg('Por favor, informe seu nome com pelo menos 3 caracteres.')
       return
     }
-    addMsg(userMsg(trimmed))
-    setBooking(prev => ({ ...prev, name: trimmed }))
+    addMsg(userMsg(name.trim()))
+    setBooking(prev => ({ ...prev, name: name.trim() }))
     setStep('phone')
-    setTimeout(() => addBotMsg('E seu WhatsApp/telefone para contato?'), 300)
+
+    setTimeout(() => {
+      addBotMsg('Ótimo! Agora digite seu **telefone / WhatsApp** com DDD:')
+    }, 350)
   }
 
-  function handlePhoneInput(raw: string) {
-    const phone = raw.trim()
+  function handlePhoneInput(phone: string) {
     if (!isValidPhone(phone)) {
-      addBotMsg('Número inválido. Digite um telefone com DDD, ex: (11) 99999-0000')
+      addBotMsg('Número de telefone inválido. Digite com DDD (ex: 11 99999-8888):')
       return
     }
     addMsg(userMsg(phone))
@@ -239,19 +275,20 @@ export default function ChatWidget() {
 
     const { service, date, time, name } = booking
     const displayPhone = phone
+
     setTimeout(() => {
       addBotMsg(
         `Perfeito! Veja o resumo do seu agendamento:\n\n` +
-        `📋 **Serviço:** ${service?.name}\n` +
-        `💰 **Valor:** ${formatCurrency(service?.price ?? 0)}\n` +
-        `📅 **Data:** ${formatDate(date)}\n` +
-        `⏰ **Horário:** ${time}\n` +
-        `👤 **Nome:** ${name}\n` +
-        `📱 **Telefone:** ${displayPhone}\n\n` +
-        `Confirmo o agendamento?`,
+          `📋 **Serviço:** ${service?.name}\n` +
+          `💰 **Valor:** ${formatCurrency(service?.price ?? 0)}\n` +
+          `📅 **Data:** ${formatDate(date)}\n` +
+          `⏰ **Horário:** ${time}\n` +
+          `👤 **Nome:** ${name}\n` +
+          `📱 **Telefone:** ${displayPhone}\n\n` +
+          `Confirmo o agendamento?`,
         ['✅ Sim, confirmar!', '❌ Cancelar']
       )
-    }, 300)
+    }, 350)
   }
 
   async function handleConfirm() {
@@ -261,7 +298,7 @@ export default function ChatWidget() {
     setBusy(true)
     const endTime = calcEndTime(booking.time, booking.service.duration_min)
 
-    // Re-check availability
+    // Re-check slot availability
     const available = await checkSlotAvailability(
       business.id,
       booking.date,
@@ -276,17 +313,18 @@ export default function ChatWidget() {
       const d = parse(booking.date, 'yyyy-MM-dd', new Date())
       const dow = d.getDay()
       const hour = hours.find(h => h.day_of_week === dow)
-      const slots = hour?.open_time && hour?.close_time
-        ? generateTimeSlots(
-            hour.open_time.substring(0, 5),
-            hour.close_time.substring(0, 5),
-            booking.service.duration_min,
-            booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
-          )
-        : []
+      const slots =
+        hour?.open_time && hour?.close_time
+          ? generateTimeSlots(
+              hour.open_time.substring(0, 5),
+              hour.close_time.substring(0, 5),
+              booking.service.duration_min,
+              booked.map(b => ({ start_time: b.start_time, end_time: b.end_time }))
+            )
+          : []
       setAvailableSlots(slots)
       addBotMsg(
-        '⚠️ Esse horário acabou de ser reservado por outra pessoa. Escolha um novo horário:',
+        '⚠️ Esse horário acabou de ser reservado por outro cliente. Por favor, escolha um novo horário disponível:',
         slots
       )
       return
@@ -305,13 +343,15 @@ export default function ChatWidget() {
     if (!result.success) {
       setBusy(false)
       setStep('error')
-      addBotMsg(`❌ ${result.error ?? 'Erro ao agendar. Tente novamente.'}\n\nDigite *reiniciar* para começar de novo.`)
+      addBotMsg(
+        `❌ ${result.error ?? 'Erro ao registrar agendamento.'}\n\nDigite *reiniciar* para tentar novamente.`
+      )
       return
     }
 
     setBooking(prev => ({ ...prev, appointmentId: result.appointmentId ?? '' }))
 
-    // Trigger n8n (non-blocking)
+    // Notificação Webhook n8n (não bloqueante)
     triggerN8nWebhook({
       event: 'appointment.created',
       business_id: business.id,
@@ -329,18 +369,39 @@ export default function ChatWidget() {
 
     setBusy(false)
     setStep('done')
+
     addBotMsg(
-      `✅ **Agendamento confirmado!**\n\n` +
-      `Você está na nossa agenda para ${formatDate(booking.date)} às ${booking.time}.\n\n` +
-      `Nos vemos em breve! 💈\n\n` +
-      `_Endereço: ${business.address}, ${business.city}_`
+      `🎉 **Agendamento Confirmado com Sucesso!**\n\n` +
+        `Seu horário está garantido para **${formatDate(booking.date)} às ${booking.time}**.\n\n` +
+        `📍 **Local:** ${business.address ?? 'Endereço principal'}, ${business.city ?? 'Centro'}\n\n` +
+        `_Clique nos botões abaixo para salvar na sua agenda:_`,
+      undefined,
+      'summary-done'
     )
   }
 
   function handleCancel() {
     addMsg(userMsg('❌ Cancelar'))
-    addBotMsg('Tudo bem! Agendamento cancelado. Se mudar de ideia, é só recomeçar. 😊', ['🔄 Agendar de novo'])
+    addBotMsg(
+      'Tudo bem! O agendamento foi cancelado. Se desejar recomeçar, basta clicar no botão abaixo:',
+      ['🔄 Agendar novamente']
+    )
     setStep('welcome')
+  }
+
+  function resetChat() {
+    setMessages([])
+    setBooking({
+      service: null,
+      professional: null,
+      date: '',
+      time: '',
+      name: '',
+      phone: '',
+      appointmentId: '',
+    })
+    setStep('welcome')
+    initChat()
   }
 
   async function handleUserSend() {
@@ -348,158 +409,244 @@ export default function ChatWidget() {
     if (!text || busy) return
     setInput('')
 
-    if (text.toLowerCase() === 'reiniciar' || text === '🔄 Agendar de novo') {
+    if (text.toLowerCase() === 'reiniciar' || text === '🔄 Agendar novamente') {
       resetChat()
       return
     }
 
     switch (step) {
-      case 'name': handleNameInput(text); break
-      case 'phone': handlePhoneInput(maskPhone(text)); break
-      default: addBotMsg('Clique em uma das opções acima para continuar.')
+      case 'name':
+        handleNameInput(text)
+        break
+      case 'phone':
+        handlePhoneInput(maskPhone(text))
+        break
+      default:
+        addBotMsg('Por favor, clique em uma das opções acima para prosseguir.')
     }
   }
 
   function handleOptionClick(option: string) {
     if (busy) return
-    switch (step) {
-      case 'service': handleServiceSelect(option); break
-      case 'date': handleDateSelect(option); break
-      case 'time': handleTimeSelect(option); break
-      case 'confirm':
-        if (option.includes('Sim')) handleConfirm()
-        else handleCancel()
-        break
-      case 'welcome':
-        if (option.includes('Agendar')) resetChat()
-        break
+    if (option === '✅ Sim, confirmar!') {
+      handleConfirm()
+    } else if (option === '❌ Cancelar') {
+      handleCancel()
+    } else if (option === '🔄 Agendar novamente') {
+      resetChat()
+    } else if (step === 'service') {
+      handleServiceSelect(option)
+    } else if (step === 'date') {
+      handleDateSelect(option)
+    } else if (step === 'time') {
+      handleTimeSelect(option)
     }
   }
 
-  function resetChat() {
-    setMessages([])
-    setBooking({ service: null, date: '', time: '', name: '', phone: '', appointmentId: '' })
-    setStep('welcome')
-    setAvailableSlots([])
-    setAvailableDates([])
-    setTimeout(() => initChat(), 100)
-  }
-
-  const lastOptions = [...messages].reverse().find(m => m.options)?.options
+  // Prepara dados do calendário para o step 'done'
+  const calendarEvent = booking.service
+    ? {
+        title: `${booking.service.name} - ${business?.name ?? 'Barbearia Prime'}`,
+        description: `Agendamento de ${booking.service.name} (${formatCurrency(booking.service.price)}) com ${booking.name}.`,
+        location: `${business?.address ?? 'Rua das Palmeiras, 123'}, ${business?.city ?? 'São Paulo'}`,
+        date: booking.date,
+        startTime: booking.time,
+        endTime: calcEndTime(booking.time, booking.service.duration_min),
+      }
+    : null
 
   return (
     <>
-      {/* Toggle button */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[var(--color-accent)] text-black shadow-2xl flex items-center justify-center hover:bg-[var(--color-accent-dark)] transition-all duration-200 hover:scale-105"
-        aria-label={open ? 'Fechar chat' : 'Abrir chat de agendamento'}
-      >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
-        {!open && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[var(--color-primary)]" />
-        )}
-      </button>
+      {/* Floating trigger button */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-full bg-[var(--color-accent)] text-black font-bold shadow-2xl shadow-[var(--color-accent)]/30 hover:scale-105 active:scale-95 transition-all duration-200 group"
+          aria-label="Abrir chat de agendamento"
+        >
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-black opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-black" />
+          </span>
+          <Scissors size={20} className="group-hover:rotate-45 transition-transform" />
+          <span className="text-sm font-extrabold tracking-tight">Agendar Horário</span>
+        </button>
+      )}
 
       {/* Chat window */}
-      <div
-        className={clsx(
-          'fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] bg-[var(--color-surface)] rounded-2xl shadow-2xl border border-[var(--color-border)] flex flex-col overflow-hidden transition-all duration-300',
-          open ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
-        )}
-        style={{ height: '520px' }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 bg-[var(--color-surface-2)] border-b border-[var(--color-border)]">
-          <div className="w-9 h-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-black">
-            <Scissors size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-[var(--color-text)] truncate">Assistente de Agendamento</p>
-            <p className="text-xs text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-              Online agora
-            </p>
-          </div>
-          <button onClick={() => setOpen(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
-            <X size={18} />
-          </button>
-        </div>
+      {open && (
+        <div className="fixed bottom-4 right-4 z-50 w-[calc(100vw-32px)] sm:w-[420px] h-[600px] max-h-[calc(100vh-32px)] flex flex-col rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3.5 bg-[var(--color-surface-2)] border-b border-[var(--color-border)] shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/40 flex items-center justify-center text-[var(--color-accent)]">
+                <Scissors size={18} />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-[var(--color-text)] leading-none">{business?.name ?? 'Barbearia Prime'}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Assistente de Agendamento</p>
+                </div>
+              </div>
+            </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.map(msg => (
-            <div key={msg.id} className={clsx('flex', msg.from === 'user' ? 'justify-end' : 'justify-start')}>
-              <div
-                className={clsx(
-                  'max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed',
-                  msg.from === 'user'
-                    ? 'bg-[var(--color-accent)] text-black rounded-tr-sm font-medium'
-                    : 'bg-[var(--color-surface-2)] text-[var(--color-text)] rounded-tl-sm border border-[var(--color-border)]'
-                )}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={resetChat}
+                title="Reiniciar conversa"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
               >
-                <span className="whitespace-pre-line">{msg.text.replace(/\*\*(.*?)\*\*/g, '$1')}</span>
-              </div>
+                <RotateCcw size={15} />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
-          ))}
-
-          {busy && (
-            <div className="flex justify-start">
-              <div className="bg-[var(--color-surface-2)] border border-[var(--color-border)] px-4 py-2 rounded-2xl rounded-tl-sm flex gap-1">
-                {[0, 1, 2].map(i => (
-                  <span
-                    key={i}
-                    className="w-2 h-2 bg-[var(--color-text-muted)] rounded-full animate-bounce"
-                    style={{ animationDelay: `${i * 0.15}s` }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Quick options */}
-          {lastOptions && !busy && step !== 'done' && step !== 'error' && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {lastOptions.map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => handleOptionClick(opt)}
-                  className="text-xs px-3 py-1.5 rounded-full border border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-black transition-all duration-150"
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Input */}
-        {(step === 'name' || step === 'phone' || step === 'error') && (
-          <div className="p-3 border-t border-[var(--color-border)] flex gap-2">
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e => {
-                const val = step === 'phone' ? maskPhone(e.target.value) : e.target.value
-                setInput(val)
-              }}
-              onKeyDown={e => e.key === 'Enter' && handleUserSend()}
-              placeholder={step === 'name' ? 'Seu nome completo...' : step === 'phone' ? '(11) 99999-0000' : 'reiniciar'}
-              className="input flex-1 py-2 text-sm"
-              disabled={busy}
-            />
-            <button
-              onClick={handleUserSend}
-              disabled={busy || !input.trim()}
-              className="w-9 h-9 rounded-lg bg-[var(--color-accent)] text-black flex items-center justify-center disabled:opacity-40 hover:bg-[var(--color-accent-dark)] transition-colors"
-            >
-              <Send size={16} />
-            </button>
           </div>
-        )}
-      </div>
+
+          {/* Messages body */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scroll-smooth">
+            {messages.map(msg => (
+              <div key={msg.id} className={clsx('flex flex-col', msg.from === 'user' ? 'items-end' : 'items-start')}>
+                <div
+                  className={clsx(
+                    'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm',
+                    msg.from === 'user'
+                      ? 'bg-[var(--color-accent)] text-black font-medium rounded-br-none'
+                      : 'bg-[var(--color-surface-2)] text-[var(--color-text)] border border-[var(--color-border)] rounded-bl-none'
+                  )}
+                >
+                  <p className="whitespace-pre-line">
+                    {msg.text.split('\n').map((line, i) => (
+                      <React.Fragment key={i}>
+                        {line.startsWith('**') && line.endsWith('**') ? (
+                          <strong>{line.slice(2, -2)}</strong>
+                        ) : (
+                          line
+                        )}
+                        {i < msg.text.split('\n').length - 1 && <br />}
+                      </React.Fragment>
+                    ))}
+                  </p>
+                </div>
+
+                {/* Interactive Options / Action Buttons */}
+                {msg.options && msg.options.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2.5 max-w-[95%]">
+                    {msg.options.map(option => (
+                      <button
+                        key={option}
+                        onClick={() => handleOptionClick(option)}
+                        disabled={busy}
+                        className={clsx(
+                          'text-xs font-semibold px-3.5 py-2 rounded-xl border transition-all duration-150',
+                          option.startsWith('✅')
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30'
+                            : option.startsWith('❌')
+                            ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                            : 'bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 active:scale-95'
+                        )}
+                      >
+                        {option.replace(/\[\d{4}-\d{2}-\d{2}\]/, '').trim()}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Custom Final Success Card with Calendar Actions */}
+                {msg.type === 'summary-done' && calendarEvent && (
+                  <div className="w-full mt-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                      <CheckCircle2 size={16} />
+                      Adicionar ao seu calendário
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <a
+                        href={generateGoogleCalendarUrl(calendarEvent)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        <Calendar size={13} />
+                        <span>Google Agenda</span>
+                        <ExternalLink size={10} className="opacity-50" />
+                      </a>
+
+                      <button
+                        onClick={() => downloadIcsFile(calendarEvent)}
+                        className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        <Download size={13} />
+                        <span>Apple / iCal</span>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={resetChat}
+                      className="w-full py-2 text-center text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors pt-2 border-t border-emerald-500/20"
+                    >
+                      Fazer outro agendamento
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {busy && (
+              <div className="flex items-center gap-2 text-[var(--color-text-muted)] text-xs px-2 py-1">
+                <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-ping" />
+                <span>Verificando horários em tempo real...</span>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input Footer */}
+          <div className="p-3 bg-[var(--color-surface-2)] border-t border-[var(--color-border)] shrink-0">
+            <form
+              onSubmit={e => {
+                e.preventDefault()
+                handleUserSend()
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                ref={inputRef}
+                type={step === 'phone' ? 'tel' : 'text'}
+                value={input}
+                onChange={e => {
+                  if (step === 'phone') {
+                    setInput(maskPhone(e.target.value))
+                  } else {
+                    setInput(e.target.value)
+                  }
+                }}
+                placeholder={
+                  step === 'name'
+                    ? 'Digite seu nome completo...'
+                    : step === 'phone'
+                    ? 'Digite seu telefone (11 99999-8888)...'
+                    : 'Clique nas opções acima...'
+                }
+                disabled={busy || (step !== 'name' && step !== 'phone')}
+                className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[var(--color-accent)] transition-colors disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || busy}
+                className="w-10 h-10 rounded-xl bg-[var(--color-accent)] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 transition-all shrink-0 font-bold"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   )
 }

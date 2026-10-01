@@ -1,5 +1,5 @@
 -- ============================================================
--- SaaS Agendamento - Schema Supabase
+-- SaaS Agendamento - Schema Supabase Multiempresa & Multi-profissional
 -- Execute no SQL Editor do Supabase
 -- ============================================================
 
@@ -47,6 +47,20 @@ create table if not exists public.services (
 );
 
 -- ============================================================
+-- TABELA: professionals (Multi-profissional)
+-- ============================================================
+create table if not exists public.professionals (
+  id            uuid primary key default uuid_generate_v4(),
+  business_id   uuid not null references public.businesses(id) on delete cascade,
+  name          text not null,
+  role          text,
+  avatar_url    text,
+  active        boolean default true,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+
+-- ============================================================
 -- TABELA: business_hours
 -- ============================================================
 create table if not exists public.business_hours (
@@ -79,18 +93,19 @@ create table if not exists public.customers (
 -- TABELA: appointments
 -- ============================================================
 create table if not exists public.appointments (
-  id            uuid primary key default uuid_generate_v4(),
-  business_id   uuid not null references public.businesses(id) on delete cascade,
-  service_id    uuid not null references public.services(id),
-  customer_id   uuid not null references public.customers(id),
-  date          date not null,
-  start_time    time not null,
-  end_time      time not null,
-  status        text not null default 'confirmed' check (status in ('pending','confirmed','cancelled','completed','no_show')),
-  notes         text,
-  n8n_notified  boolean default false,
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
+  id              uuid primary key default uuid_generate_v4(),
+  business_id     uuid not null references public.businesses(id) on delete cascade,
+  service_id      uuid not null references public.services(id),
+  professional_id uuid references public.professionals(id) on delete set null,
+  customer_id     uuid not null references public.customers(id),
+  date            date not null,
+  start_time      time not null,
+  end_time        time not null,
+  status          text not null default 'confirmed' check (status in ('pending','confirmed','cancelled','completed','no_show')),
+  notes           text,
+  n8n_notified    boolean default false,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
 );
 
 -- Impede agendamento duplicado no mesmo horário
@@ -102,6 +117,7 @@ create unique index if not exists idx_appointments_slot
 -- ÍNDICES
 -- ============================================================
 create index if not exists idx_services_business on public.services(business_id);
+create index if not exists idx_professionals_business on public.professionals(business_id);
 create index if not exists idx_hours_business on public.business_hours(business_id);
 create index if not exists idx_customers_business on public.customers(business_id);
 create index if not exists idx_appointments_business_date on public.appointments(business_id, date);
@@ -111,6 +127,7 @@ create index if not exists idx_appointments_business_date on public.appointments
 -- ============================================================
 alter table public.businesses enable row level security;
 alter table public.services enable row level security;
+alter table public.professionals enable row level security;
 alter table public.business_hours enable row level security;
 alter table public.customers enable row level security;
 alter table public.appointments enable row level security;
@@ -120,6 +137,9 @@ create policy "Public read businesses" on public.businesses
   for select using (active = true);
 
 create policy "Public read services" on public.services
+  for select using (active = true);
+
+create policy "Public read professionals" on public.professionals
   for select using (active = true);
 
 create policy "Public read business_hours" on public.business_hours
@@ -132,16 +152,12 @@ create policy "Anon insert customers" on public.customers
 create policy "Anon read own customer" on public.customers
   for select using (true);
 
--- Agendamentos: leitura e inserção pública (validação no app)
+-- Agendamentos: leitura e inserção pública
 create policy "Public read appointments" on public.appointments
   for select using (true);
 
 create policy "Anon insert appointments" on public.appointments
   for insert with check (true);
-
--- Admin: gerencia tudo via service_role (sem RLS) ou com JWT de usuário autenticado
--- Para MVP, admin usa service_role via API Routes (não exposta no frontend)
--- Alternativa: criar policy que permite tudo para authenticated users que pertencem ao business
 
 -- ============================================================
 -- FUNÇÃO: updated_at trigger
@@ -157,6 +173,8 @@ $$;
 create trigger set_updated_at_businesses before update on public.businesses
   for each row execute function public.handle_updated_at();
 create trigger set_updated_at_services before update on public.services
+  for each row execute function public.handle_updated_at();
+create trigger set_updated_at_professionals before update on public.professionals
   for each row execute function public.handle_updated_at();
 create trigger set_updated_at_business_hours before update on public.business_hours
   for each row execute function public.handle_updated_at();
@@ -201,6 +219,14 @@ begin
     (biz_id, 'Corte', 'Corte moderno com acabamento impecável', 40.00, 45, 1),
     (biz_id, 'Barba', 'Barba modelada com navalha e produtos premium', 30.00, 30, 2),
     (biz_id, 'Corte + Barba', 'Combo completo com desconto especial', 60.00, 60, 3)
+  on conflict do nothing;
+
+  -- Profissionais
+  insert into public.professionals (business_id, name, role)
+  values
+    (biz_id, 'Marcos Silva', 'Barbeiro Master'),
+    (biz_id, 'Lucas Prado', 'Especialista em Barba'),
+    (biz_id, 'Diego Ramos', 'Cortes Clássicos & Fade')
   on conflict do nothing;
 
   -- Horários (0=dom, 1=seg, ..., 6=sáb)

@@ -1,0 +1,1 @@
+Construí um SaaS de agendamento online completo para barbearias e pequenos negócios: o cliente marca em 2 minutos por um chat interativo, sem perder horário no WhatsApp. Stack moderna com React, Vite, Tailwind CSS v4, Supabase (Postgres + Auth multiempresa com RLS) e automações prontas no n8n. Código aberto no GitHub: github.com/guivolpolini/saas-barbearia

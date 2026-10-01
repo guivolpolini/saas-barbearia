@@ -49,6 +49,20 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['services']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['services']['Insert']>
       }
+      professionals: {
+        Row: {
+          id: string
+          business_id: string
+          name: string
+          role: string | null
+          avatar_url: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['professionals']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['professionals']['Insert']>
+      }
       business_hours: {
         Row: {
           id: string
@@ -81,6 +95,7 @@ export interface Database {
           id: string
           business_id: string
           service_id: string
+          professional_id: string | null
           customer_id: string
           date: string
           start_time: string
@@ -101,6 +116,7 @@ export interface Database {
 // Convenience types
 export type Business = Database['public']['Tables']['businesses']['Row']
 export type Service = Database['public']['Tables']['services']['Row']
+export type Professional = Database['public']['Tables']['professionals']['Row']
 export type BusinessHour = Database['public']['Tables']['business_hours']['Row']
 export type Customer = Database['public']['Tables']['customers']['Row']
 export type Appointment = Database['public']['Tables']['appointments']['Row']
